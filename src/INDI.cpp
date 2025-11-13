@@ -9,22 +9,22 @@ String driverVersion = "esp32-indi-simulated-mpu6050-telescope";
 
 void INDI::onTagStart(const String& tag) {
     currentTag = tag;
-    Serial.printf("Tag start: %s>\r\n", tag.c_str());
+    Serial.printf("Tag start: [%s]\r\n", tag.c_str());
 }
 
 void INDI::onText(const String& txt) {
     // Convert text to float when possible
-    float f = txt.toFloat();
-    Serial.printf("[Text] %s = %f>\r\n", currentTag.c_str(), f);
+    //float f = txt.toFloat();
+    Serial.printf("Text [%s] = %f\r\n", currentTag.c_str(), txt.c_str());
 }
 
 void INDI::onAttribute(const String& tag, const String& name, const String& value) {
-    float f = value.toFloat();
-    Serial.printf("[Attr] %s.%s = %f>\r\n", tag.c_str(), name.c_str(), f);
+    //float f = value.toFloat();
+    Serial.printf("Attr [%s.%s] = [%f]\r\n", tag.c_str(), name.c_str(), value.c_str());
 }
 
 void INDI::onTagEnd(const String& tag) {
-    Serial.printf("Tag end: %s>\r\n", tag.c_str());
+    Serial.printf("Tag end: [%s]\r\n", tag.c_str());
 }
 
 
@@ -53,8 +53,8 @@ void INDI::start(int port) {
 
     myXML.onTagStart = [this](const String& tag) { onTagStart(tag); };
     myXML.onAttribute = [this](const String& tag, const String& attrName, const String& attrValue) { onAttribute(tag, attrName, attrValue); };
-    myXML.onText = [this](const String& tag) { onTagStart(tag); };
-    myXML.onTagEnd = [this](const String& tag) { onTagStart(tag); };
+    myXML.onText = [this](const String& tag) { onText(tag); };
+    myXML.onTagEnd = [this](const String& tag) { onTagEnd(tag); };
 }
 
 void INDI::sendNumberUpdate(const char* propName, const char* elemName, double value, const char* state) {
@@ -214,7 +214,8 @@ void INDI::PrintIt() {
 }
 
 void INDI::SetupINDI() {
-  StaticJsonDocument<1024> doc;
+  JsonDocument doc;
+
   DeserializationError error = deserializeJson(doc, indiJSON);
   if (error) {
     Serial.print(F("deserializeJson() failed: "));
