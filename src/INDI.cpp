@@ -1,8 +1,32 @@
 #include "INDI.h" // Include the corresponding header file
 #include <iostream> // Example: for output
 
-
 #include "jsonDefs.h"
+
+// -------------------- Device --------------------
+String deviceName = "ESP32_TELESCOPE";
+String driverVersion = "esp32-indi-simulated-mpu6050-telescope";
+
+void INDI::onTagStart(const String& tag) {
+    currentTag = tag;
+    Serial.printf("Tag start: %s>\r\n", tag.c_str());
+}
+
+void INDI::onText(const String& txt) {
+    // Convert text to float when possible
+    float f = txt.toFloat();
+    Serial.printf("[Text] %s = %f>\r\n", currentTag.c_str(), f);
+}
+
+void INDI::onAttribute(const String& tag, const String& name, const String& value) {
+    float f = value.toFloat();
+    Serial.printf("[Attr] %s.%s = %f>\r\n", tag.c_str(), name.c_str(), f);
+}
+
+void INDI::onTagEnd(const String& tag) {
+    Serial.printf("Tag end: %s>\r\n", tag.c_str());
+}
+
 
 // Default constructor implementation
 INDI::INDI() : indiName("DefName") { // Member initializer list for m_value
@@ -26,6 +50,11 @@ void INDI::start(int port) {
     indiServer = new WiFiServer(port);
     indiServer->begin();
     indiServer->setNoDelay(true);
+
+    myXML.onTagStart = [this](const String& tag) { onTagStart(tag); };
+    myXML.onAttribute = [this](const String& tag, const String& attrName, const String& attrValue) { onAttribute(tag, attrName, attrValue); };
+    myXML.onText = [this](const String& tag) { onTagStart(tag); };
+    myXML.onTagEnd = [this](const String& tag) { onTagStart(tag); };
 }
 
 void INDI::sendNumberUpdate(const char* propName, const char* elemName, double value, const char* state) {
@@ -60,6 +89,7 @@ void INDI::loop() {
   if (client && client.connected()) {
     while (client.available()) {
       String incoming = client.readStringUntil('>');
+
       incoming += '>';
       Serial.print("RX: "); Serial.println(incoming);
       handleIncomingXML(incoming);
@@ -70,7 +100,7 @@ void INDI::loop() {
 void INDI::sendRaw(const String &s) {
   if (client && client.connected()) {
     client.print(s); client.print("\n");
-    Serial.print("TX: "); Serial.println(s);
+    //Serial.print("TX: "); Serial.println(s);
   }
 }
 
@@ -198,13 +228,14 @@ void INDI::SetupINDI() {
 }
 
 void INDI::handleIncomingXML(const String &xml) {
+  Serial.printf("Feeding [%s]\r\n", xml.c_str());
+  
+   myXML.feed(xml);
+
   if (xml.indexOf("<getProperties") >= 0) {
-    SetupINDI();
+     SetupINDI();
     //sendDeviceDefs();
     //sendInitialValues();
     sendSwitchUpdate("CONNECTION", "CONNECT", "On", "Ok");
-  }
-  if( xml.indexOf("</newSwitchVector>") >= 0) {
-    //sendSwitchUpdate();
   }
 }

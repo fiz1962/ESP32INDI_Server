@@ -5,6 +5,7 @@
 #include "INDIDefs.h"
 #include <WiFi.h>
 #include <ArduinoJson.h>
+#include "StreamXML.h"
 
 class INDI {
 public:
@@ -25,6 +26,10 @@ public:
     void start(int port);
     void sendNumberUpdate(const char* propName, const char* elemName, double value, const char* state);
     void sendSwitchUpdate(const char* propName, const char* elemName, const char* value, const char* state);
+    void onTagStart(const String& tag);
+    void onText(const String& txt);
+    void onAttribute(const String& tag, const String& name, const String& value);
+    void onTagEnd(const String& tag);
 
 private:
     // Private member variables (data)
@@ -32,6 +37,8 @@ private:
     std::vector<Group> allGroups;
     WiFiClient client;
     WiFiServer* indiServer;
+    StreamXML myXML;
+    String currentTag;
 };
 
 #endif // MYCLASS_H
