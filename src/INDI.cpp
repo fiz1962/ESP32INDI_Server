@@ -15,12 +15,12 @@ void INDI::onTagStart(const String& tag) {
 void INDI::onText(const String& txt) {
     // Convert text to float when possible
     //float f = txt.toFloat();
-    Serial.printf("Text [%s] = %f\r\n", currentTag.c_str(), txt.c_str());
+    Serial.printf("Text [%s] = %s\r\n", currentTag.c_str(), txt.c_str());
 }
 
 void INDI::onAttribute(const String& tag, const String& name, const String& value) {
     //float f = value.toFloat();
-    Serial.printf("Attr [%s.%s] = [%f]\r\n", tag.c_str(), name.c_str(), value.c_str());
+    Serial.printf("Attr [%s.%s] = [%s]\r\n", tag.c_str(), name.c_str(), value.c_str());
 }
 
 void INDI::onTagEnd(const String& tag) {
