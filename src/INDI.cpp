@@ -25,6 +25,8 @@ void INDI::onAttribute(const String& tag, const String& name, const String& valu
 
 void INDI::onTagEnd(const String& tag) {
     Serial.printf("Tag end: [%s]\r\n", tag.c_str());
+    if( tag == "getProperties" )
+	handleIncomingXML(incoming);
 }
 
 
@@ -92,7 +94,7 @@ void INDI::loop() {
 
       incoming += '>';
       Serial.print("RX: "); Serial.println(incoming);
-      handleIncomingXML(incoming);
+      //handleIncomingXML(incoming);
     }
   }
 }

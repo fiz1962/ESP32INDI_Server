@@ -32,7 +32,10 @@ public:
       // <tag ...
       // ------------------------------------------------------
       case TAG_OPEN:
-        if (c == '/') {                    // </tag>
+       if (c == '/') {                    // </tag> begins
+          if (textBuffer.length())       // <-- emit text BEFORE the end-tag
+            emitText();
+
           tagBuffer = "";
           state = TAG_CLOSE;
         }
