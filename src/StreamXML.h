@@ -11,88 +11,53 @@ public:
   void feed(char c) {
     switch (state) {
 
-      // ------------------------------------------------------
-      // TEXT
-      // ------------------------------------------------------
       case TEXT:
         if (c == '<') {
           if (textBuffer.length()) emitText();
           tagBuffer = "";
-          attrName = "";
-          attrValue = "";
-          tagStarted = false;
-          selfClosing = false;
           state = TAG_OPEN;
         } else {
           textBuffer += c;
         }
         break;
 
-      // ------------------------------------------------------
-      // <tag ...
-      // ------------------------------------------------------
       case TAG_OPEN:
-       if (c == '/') {                    // </tag> begins
-          if (textBuffer.length())       // <-- emit text BEFORE the end-tag
-            emitText();
-
+        if (c == '/') {
           tagBuffer = "";
           state = TAG_CLOSE;
-        }
-        else if (isWhitespace(c)) {        // <tag␣ → tag name finished
-          emitTagStartOnce();
+        } else if (c == ' ' || c == '\t' || c == '\n') {
           state = ATTR_NAME;
-        }
-        else if (c == '>') {               // <tag>
-          emitTagStartOnce();
-          emitTagEndIfSelfClosing();
+          attrName = "";
+        } else if (c == '>') {
+          emitTagStart();
           state = TEXT;
-        }
-        else if (c == '/') {               // <tag/ >
-          selfClosing = true;
-        }
-        else {
+        } else {
           tagBuffer += c;
         }
         break;
 
-      // ------------------------------------------------------
-      // attribute name
-      // ------------------------------------------------------
       case ATTR_NAME:
-        if (c == '>') {                    // end of start-tag
-          emitTagStartOnce();
-          emitTagEndIfSelfClosing();
+        if (c == '>' ) {
+          emitTagStart();
           state = TEXT;
-        }
-        else if (c == '/') {               // <tag .../>
-          selfClosing = true;
-        }
-        else if (c == '=') {
+        } else if (c == '=') {
           state = ATTR_VALUE_QUOTE;
-        }
-        else if (!isWhitespace(c)) {
+        } else if (!isWhitespace(c)) {
           attrName += c;
         }
         break;
 
-      // ------------------------------------------------------
-      // expecting opening quote
-      // ------------------------------------------------------
       case ATTR_VALUE_QUOTE:
-        if (c == '"' || c == '\'') {
+        if (c == '"' || c == '\'') {  // accept both " and '
           quoteChar = c;
           attrValue = "";
           state = ATTR_VALUE;
         }
         break;
 
-      // ------------------------------------------------------
-      // inside attribute value
-      // ------------------------------------------------------
       case ATTR_VALUE:
         if (c == quoteChar) {
-          emitAttribute();
+          if (onAttribute) onAttribute(tagBuffer, attrName, attrValue);
           attrName = "";
           state = ATTR_NAME;
         } else {
@@ -100,12 +65,9 @@ public:
         }
         break;
 
-      // ------------------------------------------------------
-      // </tag>
-      // ------------------------------------------------------
       case TAG_CLOSE:
         if (c == '>') {
-          if (onTagEnd) onTagEnd(tagBuffer);
+          emitTagEnd();
           state = TEXT;
         } else {
           tagBuffer += c;
@@ -119,48 +81,27 @@ public:
   }
 
 private:
-
   enum State { TEXT, TAG_OPEN, ATTR_NAME, ATTR_VALUE_QUOTE, ATTR_VALUE, TAG_CLOSE } state = TEXT;
-
-  String textBuffer;
-  String tagBuffer;
-  String attrName;
-  String attrValue;
-
-  char quoteChar = '"';
-  bool tagStarted = false;
-  bool selfClosing = false;
+  char quoteChar;
+  String textBuffer, tagBuffer, attrName, attrValue;
 
   bool isWhitespace(char c) {
-    return c==' ' || c=='\n' || c=='\t' || c=='\r';
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
   }
-
-  // ----------------------------------------------------------
-  // Emit helpers
-  // ----------------------------------------------------------
 
   void emitText() {
     String cleaned = textBuffer;
-    cleaned.trim();
+    cleaned.trim();              // <-- trims whitespace
     if (cleaned.length() && onText)
       onText(cleaned);
     textBuffer = "";
   }
 
-  void emitTagStartOnce() {
-    if (!tagStarted) {
-      tagStarted = true;
-      if (onTagStart) onTagStart(tagBuffer);
-    }
+  void emitTagStart() {
+    if (onTagStart) onTagStart(tagBuffer);
   }
 
-  void emitAttribute() {
-    if (onAttribute)
-      onAttribute(tagBuffer, attrName, attrValue);
-  }
-
-  void emitTagEndIfSelfClosing() {
-    if (selfClosing && onTagEnd)
-      onTagEnd(tagBuffer);
+  void emitTagEnd() {
+    if (onTagEnd) onTagEnd(tagBuffer);
   }
 };

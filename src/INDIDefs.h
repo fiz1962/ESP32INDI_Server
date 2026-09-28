@@ -19,6 +19,7 @@ struct SwitchVector {
 struct NumberEntry {
   String name;
   String label;
+  String format;
   float value;
 };
 

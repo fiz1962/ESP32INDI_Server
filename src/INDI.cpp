@@ -1,42 +1,25 @@
 #include "INDI.h" // Include the corresponding header file
 #include <iostream> // Example: for output
+#include <vector>
 
 #include "jsonDefs.h"
 
 // -------------------- Device --------------------
-String deviceName = "ESP32_TELESCOPE";
+String deviceName = "ESP32-Telescope";
 String driverVersion = "esp32-indi-simulated-mpu6050-telescope";
 
-void INDI::onTagStart(const String& tag) {
-    currentTag = tag;
-    Serial.printf("Tag start: [%s]\r\n", tag.c_str());
-}
-
-void INDI::onText(const String& txt) {
-    // Convert text to float when possible
-    //float f = txt.toFloat();
-    Serial.printf("Text [%s] = %s\r\n", currentTag.c_str(), txt.c_str());
-}
-
-void INDI::onAttribute(const String& tag, const String& name, const String& value) {
-    //float f = value.toFloat();
-    Serial.printf("Attr [%s.%s] = [%s]\r\n", tag.c_str(), name.c_str(), value.c_str());
-}
-
-void INDI::onTagEnd(const String& tag) {
-    Serial.printf("Tag end: [%s]\r\n", tag.c_str());
-    if( tag == "getProperties" )
-	handleIncomingXML(incoming);
-}
-
-
 // Default constructor implementation
-INDI::INDI() : indiName("DefName") { // Member initializer list for m_value
+INDI::INDI() : indiName(deviceName),  router(this) { // Member initializer list for m_value
     Serial.printf("INDI object created with value: %s\r\n", indiName.c_str());
+    //router.registerRoute("newswitchvector", "CONNECTION", handleSwitchVectors);
+    //router.registerRoute("newNumberVector", "GEOGRAPHIC_COORD", handleGeoCoords);
+    //router.registerRoute("newNumberVector", "EQUATORIAL_EOD_COORD", handleEQCoords);
+    isTracking = false;
+    
 }
 
 // Parameterized constructor implementation
-INDI::INDI(String name) : indiName(name) {
+INDI::INDI(String name) : indiName(name),  router(this) {
     Serial.printf("INDI object created with value: %s\r\n", indiName.c_str());
 
 }
@@ -46,33 +29,88 @@ INDI::~INDI() {
     std::cout << "MyClass object destroyed." << std::endl;
     indiServer->stop();
     delete indiServer;
+    isTracking = false;
 }
 
 void INDI::start(int port) {
     indiServer = new WiFiServer(port);
     indiServer->begin();
     indiServer->setNoDelay(true);
-
-    myXML.onTagStart = [this](const String& tag) { onTagStart(tag); };
-    myXML.onAttribute = [this](const String& tag, const String& attrName, const String& attrValue) { onAttribute(tag, attrName, attrValue); };
-    myXML.onText = [this](const String& tag) { onText(tag); };
-    myXML.onTagEnd = [this](const String& tag) { onTagEnd(tag); };
 }
 
-void INDI::sendNumberUpdate(const char* propName, const char* elemName, double value, const char* state) {
+void INDI::sendNumberUpdate(const char* propName, 
+                            const std::vector<const char*>& elemNames, 
+                            const std::vector<double>& values, 
+                            const char* state) {
+  // Edge case protection: ensure arrays match in size
+  if (elemNames.size() != values.size() || elemNames.empty()) return;
+
   String s;
+  // Reserve memory upfront to prevent reallocations during string building
+  s.reserve(256 + (elemNames.size() * 128)); 
+
   s  = "<setNumberVector device=\"" + indiName + "\" name=\"" + String(propName) + "\" state=\"" + String(state) + "\">\r\n";
-  s += "  <oneNumber name=\"" + String(elemName) + "\" message=\"Setting number\">" + String(value,6) + "</oneNumber>\r\n";
+  
+  // Loop through all provided element/value pairs
+  for (size_t i = 0; i < elemNames.size(); ++i) {
+    s += "  <oneNumber name=\"" + String(elemNames[i]) + "\">" + String(values[i], 6) + "</oneNumber>\r\n";
+  }
+  
   s += "</setNumberVector>";
   sendRaw(s);
 }
 
-void INDI::sendSwitchUpdate(const char* propName, const char* elemName, const char* value, const char* state) {
+void INDI::sendTextUpdate(const char* propName, 
+                          const std::vector<const char*>& elemNames, 
+                          const std::vector<const char*>& values, 
+                          const char* state) {
+  // Edge case protection: ensure arrays match in size
+  if (elemNames.size() != values.size() || elemNames.empty()) return;
+
   String s;
-  s  = "<setSwitchVector device=\"ESP32-Telescope\" name=\"CONNECTION\" state=\"Ok\">\r\n";
-  s += "    <oneSwitch name=\"DISCONNECT\">Off</oneSwitch>\r\n";
-  s += "    <oneSwitch name=\"CONNECT\">On</oneSwitch>\r\n";
+  // Pre-allocate memory upfront to keep heap execution stable and fast
+  s.reserve(256 + (elemNames.size() * 128));
+
+  s  = "<setTextVector device=\"" + indiName + "\" name=\"" + String(propName) + "\" state=\"" + String(state) + "\">\r\n";
+  
+  // Loop through and append all text elements
+  for (size_t i = 0; i < elemNames.size(); ++i) {
+    s += "  <oneText name=\"" + String(elemNames[i]) + "\">" + String(values[i]) + "</oneText>\r\n";
+  }
+  
+  s += "</setTextVector>";
+  sendRaw(s);
+}
+
+void INDI::sendSwitchUpdate(const char* propName, 
+                            const std::vector<const char*>& elemNames, 
+                            const std::vector<const char*>& values, 
+                            const char* state) {
+  // Edge case protection: ensure arrays match in size
+  if (elemNames.size() != values.size() || elemNames.empty()) return;
+
+  String s;
+  // Pre-allocate memory upfront to keep heap execution lightning fast
+  s.reserve(256 + (elemNames.size() * 128));
+
+  s  = "<setSwitchVector device=\"ESP32-Telescope\" name=\"";
+  s += propName;
+  s += "\" state=\"";
+  s += state;
+  s += "\">\r\n";
+  
+  // Loop through and append all switch elements
+  for (size_t i = 0; i < elemNames.size(); ++i) {
+    s += "    <oneSwitch name=\"";
+    s += elemNames[i];
+    s += "\">";
+    s += values[i];
+    s += "</oneSwitch>\r\n";
+  }
+  
   s += "</setSwitchVector>";
+  
+  // printf("TX: %s\n", s.c_str());
   sendRaw(s);
 }
 
@@ -93,8 +131,9 @@ void INDI::loop() {
       String incoming = client.readStringUntil('>');
 
       incoming += '>';
-      Serial.print("RX: "); Serial.println(incoming);
-      //handleIncomingXML(incoming);
+      //Serial.print("RX: "); Serial.println(incoming);
+      handleIncomingXML(incoming);
+      router.processStream(std::string(incoming.c_str()));
     }
   }
 }
@@ -136,18 +175,16 @@ void INDI::parseDeviceJson(JsonDocument& doc) {
     // NUMBER VECTOR
     for (JsonObject nvObj : groupObj["NumberVector"].as<JsonArray>()) {
       NumberVector nv;
-      //String pretty;
-//serializeJsonPretty(groupObj["NumberVector"], pretty);
-//Serial.println(pretty);
 
       nv.name = nvObj["name"].as<const char*>();
       nv.label = nvObj["label"].as<const char*>();
 
       for (JsonObject n : nvObj["numbers"].as<JsonArray>()) {
         NumberEntry ne;
-        ne.name  = n["name"].as<const char*>();
-        ne.label = n["label"].as<const char*>();
-        ne.value = n["value"].as<float>();
+        ne.name   = n["name"].as<const char*>();
+        ne.label  = n["label"].as<const char*>();
+        ne.format = n["format"].as<const char*>();
+        ne.value  = n["value"].as<float>();
         nv.numbers.push_back(ne);
       }
 
@@ -183,7 +220,7 @@ void INDI::PrintIt() {
     if (!g.switchVectors.empty()) {
       Serial.println("  SwitchVectors:");
       for (auto &sv : g.switchVectors) {
-        sendRaw("<defSwitchVector device=\"ESP32-Telescope\" name=\"" + sv.name + "\" label=\"" + sv.label + "\" group=\"" + g.name + "\" state=\"Idle\" perm=\"rw\" rule=\"OneOfMany\">");
+        sendRaw("<defSwitchVector device=\"ESP32-Telescope\" name=\"" + sv.name + "\" label=\"" + sv.label + "\" group=\"" + g.name + "\" state=\"Ok\" perm=\"rw\" rule=\"OneOfMany\">");
         for (auto &s : sv.switches) {
           sendRaw("<defSwitch name=\"" + s.name + "\" label=\"" + s.label + "\">" + s.value + "</defSwitch>");
         }
@@ -194,9 +231,9 @@ void INDI::PrintIt() {
     if (!g.numberVectors.empty()) {
       Serial.println("  NumberVectors:");
       for (auto &nv : g.numberVectors) {
-        sendRaw("<defNumberVector device=\"ESP32-Telescope\" name=\"" + nv.name + "\" label=\"" + nv.label + "\" group=\"" + g.name + "\" state=\"Idle\" perm=\"rw\">");
+        sendRaw("<defNumberVector device=\"ESP32-Telescope\" name=\"" + nv.name + "\" label=\"" + nv.label + "\" group=\"" + g.name + "\" state=\"Ok\" perm=\"rw\">");
         for (auto &n : nv.numbers) {
-          sendRaw("<defNumber name=\"" + n.name + "\" label=\"" + n.label + "\" format=\"%010.6m\">" + n.value + "</defNumber>");
+          sendRaw("<defNumber name=\"" + n.name + "\" label=\"" + n.label + "\" format=\"" + n.format + "\">" + n.value + "</defNumber>");
         }
         sendRaw("</defNumberVector>");
       }
@@ -205,7 +242,7 @@ void INDI::PrintIt() {
     if (!g.textVectors.empty()) {
       Serial.println("  TextVectors:");
       for (auto &tv : g.textVectors) {
-        sendRaw("<defTextVector device=\"ESP32-Telescope\" name=\"" + tv.name + "\" label=\"" + tv.label + "\" group=\"" + g.name + "\" state=\"Idle\" perm=\"ro\">");
+        sendRaw("<defTextVector device=\"ESP32-Telescope\" name=\"" + tv.name + "\" label=\"" + tv.label + "\" group=\"" + g.name + "\" state=\"Ok\" perm=\"rw\">");
         for (auto &t : tv.texts) {
           sendRaw("<defText name=\"" + t.name + "\" label=\"" + t.label + "\">" + t.value + "</defText>");
         }
@@ -216,8 +253,7 @@ void INDI::PrintIt() {
 }
 
 void INDI::SetupINDI() {
-  JsonDocument doc;
-
+  StaticJsonDocument<1024> doc;
   DeserializationError error = deserializeJson(doc, indiJSON);
   if (error) {
     Serial.print(F("deserializeJson() failed: "));
@@ -231,14 +267,15 @@ void INDI::SetupINDI() {
 }
 
 void INDI::handleIncomingXML(const String &xml) {
-  Serial.printf("Feeding [%s]\r\n", xml.c_str());
+  //Serial.printf("Feeding [%s]\r\n", xml.c_str());
   
    myXML.feed(xml);
 
   if (xml.indexOf("<getProperties") >= 0) {
      SetupINDI();
-    //sendDeviceDefs();
-    //sendInitialValues();
-    sendSwitchUpdate("CONNECTION", "CONNECT", "On", "Ok");
+       
+     const std::vector<const char*> elemNames = {"ALT", "AZ"};
+     const std::vector<double> values = {42.125432, 180.052119};
+     sendNumberUpdate("HORIZONTAL_COORD", elemNames, values, "Ok");
   }
 }

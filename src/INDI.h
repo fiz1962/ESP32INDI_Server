@@ -6,6 +6,7 @@
 #include <WiFi.h>
 #include <ArduinoJson.h>
 #include "StreamXML.h"
+#include "VectorRouter.h"
 
 class INDI {
 public:
@@ -24,12 +25,23 @@ public:
     void loop();
     void handleIncomingXML(const String &xml);
     void start(int port);
-    void sendNumberUpdate(const char* propName, const char* elemName, double value, const char* state);
-    void sendSwitchUpdate(const char* propName, const char* elemName, const char* value, const char* state);
-    void onTagStart(const String& tag);
-    void onText(const String& txt);
-    void onAttribute(const String& tag, const String& name, const String& value);
-    void onTagEnd(const String& tag);
+    void sendNumberUpdate(const char* propName,
+                            const std::vector<const char*>& elemNames,
+                            const std::vector<double>& values,
+                            const char* state);
+    void sendSwitchUpdate(const char* propName, 
+                            const std::vector<const char*>& elemNames, 
+                            const std::vector<const char*>& values, 
+                            const char* state);
+    void sendTextUpdate(const char* propName, 
+                          const std::vector<const char*>& elemNames, 
+                          const std::vector<const char*>& values, 
+                          const char* state);
+    //void onTagStart(const String& tag);
+    //void onText(const String& txt);
+    //void onAttribute(const String& tag, const String& name, const String& value);
+    //void onTagEnd(const String& tag);
+    bool isTracking;
 
 private:
     // Private member variables (data)
@@ -39,6 +51,7 @@ private:
     WiFiServer* indiServer;
     StreamXML myXML;
     String currentTag;
+    VectorStreamRouter router;
 };
 
 #endif // MYCLASS_H
